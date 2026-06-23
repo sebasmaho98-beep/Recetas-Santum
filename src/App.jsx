@@ -1,4 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://geagjbhhskouhmctvbnp.supabase.co";
+const SUPABASE_KEY = "sb_publishable_WuzcTG3lCt4_Gqc4R-l8mw_tKJqM2-7";
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 
 // ─── DATOS DE LAS RECETAS DEL EXCEL ──────────────────────────────────────────
 const INITIAL_RECIPES = [
@@ -918,14 +925,11 @@ function Badge({ category }) {
 }
 
 export default function App() {
-  const [recipes, setRecipes] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("santum_v2") || "null") || INITIAL_RECIPES; }
-    catch { return INITIAL_RECIPES; }
-  });
-  const [priceDB, setPriceDB] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("santum_prices") || "null") || { ...INITIAL_PRICES }; }
-    catch { return { ...INITIAL_PRICES }; }
-  });
+  const [recipes, setRecipes] = useState([]);
+  const [priceDB, setPriceDB] = useState({ ...INITIAL_PRICES });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [synced, setSynced] = useState(false);
   const [view, setView] = useState("home");
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState(null);
@@ -941,12 +945,33 @@ export default function App() {
   const [newIngName, setNewIngName] = useState("");
   const [newIngPrice, setNewIngPrice] = useState("");
 
-  useEffect(() => {
-    try { localStorage.setItem("santum_v2", JSON.stringify(recipes)); } catch {}
-  }, [recipes]);
-  useEffect(() => {
-    try { localStorage.setItem("santum_prices", JSON.stringify(priceDB)); } catch {}
-  }, [priceDB]);
+  // ── Cargar datos de Supabase al arrancar ──
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: rData } = await sb.from("recipes").select("*").order("created_at");
+      const { data: pData } = await sb.from("prices").select("*");
+      if (rData && rData.length > 0) {
+        setRecipes(rData.map(r => ({ id: r.id, name: r.name, category: r.category, ingredients: r.ingredients || [], comments: r.comments || "", lastMade: r.last_made || "" })));
+      } else {
+        const toInsert = INITIAL_RECIPES.map(r => ({ name: r.name, category: r.category, ingredients: r.ingredients, comments: r.comments || "", last_made: r.lastMade || null }));
+        const { data: ins } = await sb.from("recipes").insert(toInsert).select();
+        if (ins) setRecipes(ins.map(r => ({ id: r.id, name: r.name, category: r.category, ingredients: r.ingredients || [], comments: r.comments || "", lastMade: r.last_made || "" })));
+      }
+      if (pData && pData.length > 0) {
+        const db = {};
+        pData.forEach(p => { db[p.ingredient_key] = parseFloat(p.price_per_gram); });
+        setPriceDB(db);
+      } else {
+        const toInsert = Object.entries(INITIAL_PRICES).map(([k, v]) => ({ ingredient_key: k, price_per_gram: v }));
+        await sb.from("prices").insert(toInsert);
+      }
+      setSynced(true);
+    } catch(e) { console.error(e); setRecipes(INITIAL_RECIPES); setPriceDB({ ...INITIAL_PRICES }); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   const selected = recipes.find(r => r.id === selectedId);
 
@@ -974,20 +999,25 @@ export default function App() {
     setForm({ ...r, ingredients: r.ingredients.map(i => ({ ...i })) });
     setView("form");
   };
-  const saveForm = () => {
+  const saveForm = async () => {
     if (!form.name.trim()) return;
-    if (form.id) {
-      setRecipes(rs => rs.map(r => r.id === form.id ? form : r));
-      setSelectedId(form.id);
-    } else {
-      const newR = { ...form, id: Date.now() };
-      setRecipes(rs => [...rs, newR]);
-      setSelectedId(newR.id);
-    }
+    setSaving(true);
+    try {
+      if (form.id) {
+        await sb.from("recipes").update({ name: form.name, category: form.category, ingredients: form.ingredients, comments: form.comments, last_made: form.lastMade || null, updated_at: new Date().toISOString() }).eq("id", form.id);
+        setRecipes(rs => rs.map(r => r.id === form.id ? form : r));
+        setSelectedId(form.id);
+      } else {
+        const { data } = await sb.from("recipes").insert({ name: form.name, category: form.category, ingredients: form.ingredients, comments: form.comments, last_made: form.lastMade || null }).select().single();
+        if (data) { const newR = { ...form, id: data.id }; setRecipes(rs => [...rs, newR]); setSelectedId(data.id); }
+      }
+    } catch(e) { console.error(e); }
+    setSaving(false);
     setView("detail");
   };
-  const deleteRecipe = (id) => {
+  const deleteRecipe = async (id) => {
     if (!confirm("¿Eliminar esta receta?")) return;
+    await sb.from("recipes").delete().eq("id", id);
     setRecipes(rs => rs.filter(r => r.id !== id));
     setView("home");
   };
@@ -996,7 +1026,8 @@ export default function App() {
     setNewDate(recipe.lastMade || "");
     setShowDateModal(true);
   };
-  const saveDateModal = () => {
+  const saveDateModal = async () => {
+    await sb.from("recipes").update({ last_made: newDate || null, updated_at: new Date().toISOString() }).eq("id", dateTarget.id);
     setRecipes(rs => rs.map(r => r.id === dateTarget.id ? { ...r, lastMade: newDate } : r));
     setShowDateModal(false);
   };
@@ -1007,19 +1038,23 @@ export default function App() {
   }));
 
   // Price DB helpers
-  const saveEditPrice = () => {
+  const saveEditPrice = async () => {
     const val = parseFloat(editingVal);
     if (isNaN(val)) return;
+    await sb.from("prices").upsert({ ingredient_key: editingKey, price_per_gram: val, updated_at: new Date().toISOString() }, { onConflict: "ingredient_key" });
     setPriceDB(p => ({ ...p, [editingKey]: val }));
     setEditingKey(null);
   };
-  const addNewIngredient = () => {
+  const addNewIngredient = async () => {
     if (!newIngName.trim() || newIngPrice === "") return;
     const key = normalizeKey(newIngName);
-    setPriceDB(p => ({ ...p, [key]: parseFloat(newIngPrice) || 0 }));
+    const val = parseFloat(newIngPrice) || 0;
+    await sb.from("prices").upsert({ ingredient_key: key, price_per_gram: val, updated_at: new Date().toISOString() }, { onConflict: "ingredient_key" });
+    setPriceDB(p => ({ ...p, [key]: val }));
     setNewIngName(""); setNewIngPrice("");
   };
-  const deleteIngredient = (key) => {
+  const deleteIngredient = async (key) => {
+    await sb.from("prices").delete().eq("ingredient_key", key);
     setPriceDB(p => { const n = { ...p }; delete n[key]; return n; });
   };
 
@@ -1029,6 +1064,23 @@ export default function App() {
 
   return (
     <div style={S.root}>
+      {loading && (
+        <div style={{ position: "fixed", inset: 0, background: "#2c2218", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+          <div style={{ width: 60, height: 60, borderRadius: "50%", background: "linear-gradient(135deg,#C8A882,#a07850)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff", marginBottom: 20 }}>S</div>
+          <div style={{ color: "#C8A882", fontSize: 18, fontWeight: 700, letterSpacing: "0.15em" }}>SANTUM</div>
+          <div style={{ color: "#8a7a6a", fontSize: 13, marginTop: 8 }}>Cargando recetas...</div>
+        </div>
+      )}
+      {saving && (
+        <div style={{ position: "fixed", bottom: 24, right: 24, background: "#2c2218", color: "#C8A882", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+          💾 Guardando...
+        </div>
+      )}
+      {synced && !saving && !loading && (
+        <div style={{ position: "fixed", bottom: 24, right: 24, background: "#1a4a1a", color: "#6aaa6a", padding: "8px 16px", borderRadius: 10, fontSize: 12, zIndex: 998, opacity: 0.8 }}>
+          ☁️ Sincronizado
+        </div>
+      )}
       {/* HEADER */}
       <header style={S.header}>
         <div style={S.hInner}>
