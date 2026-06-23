@@ -1071,33 +1071,31 @@ export default function App() {
     .filter(([k]) => k.toLowerCase().includes(priceSearch.toLowerCase()))
     .sort((a, b) => a[0].localeCompare(b[0]));
 
-  return (
-    // ── Login ──
-    if (!authed) return (
-      <div style={{ minHeight: "100vh", background: "#2c2218", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Georgia', serif" }}>
-        <div style={{ background: "#faf8f5", borderRadius: 20, padding: "40px 36px", width: 340, textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,0.4)" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg,#C8A882,#a07850)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800, color: "#fff", margin: "0 auto 16px" }}>S</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#2c2218", letterSpacing: "0.1em", marginBottom: 4 }}>SANTUM</div>
-          <div style={{ fontSize: 12, color: "#8a7a6a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 28 }}>Libro de Recetas</div>
-          <input
-            type="password"
-            placeholder="Contraseña del equipo"
-            style={{ width: "100%", border: "1.5px solid #e0d5c8", borderRadius: 10, padding: "12px 14px", fontFamily: "inherit", fontSize: 15, color: "#2c2218", background: "#faf8f5", outline: "none", boxSizing: "border-box", marginBottom: 12, textAlign: "center" }}
-            value={loginPass}
-            onChange={e => setLoginPass(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && checkPass()}
-          />
-          {loginError && <div style={{ color: "#c0392b", fontSize: 13, marginBottom: 10 }}>❌ Contraseña incorrecta</div>}
-          <button
-            style={{ width: "100%", background: "linear-gradient(135deg,#C8A882,#a07850)", color: "#fff", border: "none", borderRadius: 10, padding: "13px", fontFamily: "inherit", fontSize: 15, cursor: "pointer", fontWeight: 700 }}
-            onClick={checkPass}
-          >Entrar</button>
-          <div style={{ fontSize: 11, color: "#bbb", marginTop: 16 }}>Solo para el equipo SANTUM</div>
-        </div>
+  if (!authed) return (
+    <div style={{ minHeight: "100vh", background: "#2c2218", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Georgia', serif" }}>
+      <div style={{ background: "#faf8f5", borderRadius: 20, padding: "40px 36px", width: 340, textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,0.4)" }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg,#C8A882,#a07850)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800, color: "#fff", margin: "0 auto 16px" }}>S</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#2c2218", letterSpacing: "0.1em", marginBottom: 4 }}>SANTUM</div>
+        <div style={{ fontSize: 12, color: "#8a7a6a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 28 }}>Libro de Recetas</div>
+        <input
+          type="password"
+          placeholder="Contraseña del equipo"
+          style={{ width: "100%", border: "1.5px solid #e0d5c8", borderRadius: 10, padding: "12px 14px", fontFamily: "inherit", fontSize: 15, color: "#2c2218", background: "#faf8f5", outline: "none", boxSizing: "border-box", marginBottom: 12, textAlign: "center" }}
+          value={loginPass}
+          onChange={e => setLoginPass(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && checkPass()}
+        />
+        {loginError && <div style={{ color: "#c0392b", fontSize: 13, marginBottom: 10 }}>❌ Contraseña incorrecta</div>}
+        <button
+          style={{ width: "100%", background: "linear-gradient(135deg,#C8A882,#a07850)", color: "#fff", border: "none", borderRadius: 10, padding: "13px", fontFamily: "inherit", fontSize: 15, cursor: "pointer", fontWeight: 700 }}
+          onClick={checkPass}
+        >Entrar</button>
+        <div style={{ fontSize: 11, color: "#bbb", marginTop: 16 }}>Solo para el equipo SANTUM</div>
       </div>
-    );
+    </div>
+  );
 
-    return (
+  return (
     <div style={S.root}>
       {loading && (
         <div style={{ position: "fixed", inset: 0, background: "#2c2218", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
@@ -1494,7 +1492,6 @@ export default function App() {
         </div>
       )}
     </div>
-    );
   );
 }
 
